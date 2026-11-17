@@ -191,50 +191,9 @@ ArisaSTALL::ArisaSTALL(fvMesh& mesh)
 | thermophysicalPredictor.C | 能量方程添加lambda修正 | 焓时间导数、对流项、压力功 |
 | correctPressure.C | 压力修正与速度更新 | 拉普拉斯系数、压力方程、速度更新 |
 
-## 4. 关键实现细节
+## 4. 编译与运行
 
-### 4.1 压力梯度项处理
-**正确实现**：`-fvc::grad(lambda*p)`  // -∇(λp)
-**错误实现**：`-lambda*fvc::grad(p)`  // -λ∇p
-
-**原因**：完整考虑 λ 的空间变化，包含 `p∇λ` 项。
-
-### 4.2 速度更新中的 λ 放置
-**实现**：`U = HbyA - lambda*rAAtU*fvc::grad(p);`
-
-**原理**：
-- `p∇λ` 项已通过动量方程离散被包含在 `HbyA` 中
-- 系数矩阵 `A` 包含 λ 影响，`rAAtU`（A的逆）也包含 λ 信息
-
-### 4.3 能量方程压力功项
-- **内能形式**：`fvc::div(lambdaf*phi, p/rho)()`  // ∇·(λpU)
-- **总焓形式**：`(-lambda*dpdt - (U & fvc::grad(lambda*p))).internalField()`  // -λ∂p/∂t - U·∇(λp)
-
-## 5. 验证方法
-
-### 5.1 等价性验证（λ=1时与纯欧拉一致）
-- 设置 `lambdaDefault=1`
-- 与标准欧拉求解器对比结果
-- 验收标准：激波位置偏差<0.5%，质量流量偏差<0.1%
-
-### 5.2 堵塞因子验证
-- 拉瓦尔喷管算例，设置均匀 λ=0.8
-- 验证质量流量与 λ 成比例
-- 验收标准：质量流量 = 无堵塞流量 × λ，偏差<1%
-
-### 5.3 守恒性验证
-- 稳态算例收敛后检查连续性残差
-- 计算进出口质量流量差
-- 验收标准：连续性残差<1e-6，质量守恒误差<0.01%
-
-### 5.4 壅塞工况验证
-- 压气机单级算例，逐步降低出口背压直到壅塞
-- 对比质量流量与实验/三维CFD结果
-- 验收标准：壅塞质量流量偏差<1.5%，压比特性偏差<2%
-
-## 6. 编译与运行
-
-### 6.1 编译步骤
+### 4.1 编译步骤
 ```bash
 # 进入求解器目录
 cd d:\src_backup\ArisaSTALL
@@ -249,7 +208,7 @@ wmake -j
 ls $FOAM_USER_LIBBIN | grep libArisaSTALL.so
 ```
 
-### 6.2 运行示例算例
+### 4.2 运行示例算例
 ```bash
 # 复制教程算例
 cp -r $FOAM_TUTORIALS/compressible/ArisaSTALL/forwardStep ./
@@ -268,9 +227,9 @@ ArisaSTALL  # 串行
 # mpirun -np 8 ArisaSTALL -parallel  # 并行
 ```
 
-## 7. 算例配置
+## 5. 算例配置
 
-### 7.1 system/fvSolution
+### 5.1 system/fvSolution
 ```c++
 // 全局默认lambda值
 lambdaDefault 0.85; // 0~1之间，默认1.0
@@ -284,7 +243,7 @@ PIMPLE
 }
 ```
 
-### 7.2 constant/lambda
+### 5.2 constant/lambda
 ```c++
 FoamFile
 {
