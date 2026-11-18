@@ -94,13 +94,18 @@ public:
         //- Correct the thermophysical transport (empty for Euler solver)
         virtual void thermophysicalTransportCorrector();
 
-        //- Correct pressure
-        virtual void correctPressure();
+        void prePredictor() override;
+        void pressureCorrector() override;
 
 protected:
 
     //- Blockage factor field (lambda = actualFlowArea / totalArea)
     volScalarField lambda_;
+
+private:
+
+    void correctBlockageDensity(const surfaceScalarField& lambdaf);
+    void correctPressure();
 };
 
 

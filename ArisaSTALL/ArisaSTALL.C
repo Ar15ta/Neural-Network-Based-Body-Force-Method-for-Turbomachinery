@@ -24,6 +24,7 @@ License
 \*---------------------------------------------------------------------------*/
 
 #include "ArisaSTALL.H"
+#include "fvcVolumeIntegrate.H"
 #include "addToRunTimeSelectionTable.H"
 
 // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
@@ -77,6 +78,11 @@ Foam::solvers::ArisaSTALL::ArisaSTALL(fvMesh& mesh)
         Info<< "lambda file not found, using uniform default value: "
             << lambdaDefault << endl;
         lambda_ = lambdaDefault;
+    }
+
+    if (!buoyancy.valid())
+    {
+        initialMass = fvc::domainIntegrate(lambda_*rho_);
     }
 
     Info<< "Lambda field: min = " << min(lambda_).value()

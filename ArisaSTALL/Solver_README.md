@@ -26,9 +26,8 @@ $
 
 #### 1.2.3 速度更新推导
 1. 离散动量方程：`A·U = H - ∇(λp)`
-2. 定义中间速度：`HbyA = H/A`（当 ∇p=0 时的解）
-3. 完整速度解：`U = HbyA - A⁻¹·∇(λp)`
-4. 由于 `A⁻¹` 已包含 λ 的影响，简化为：`U = HbyA - λ·rAAtU·∇p`
+2. 定义中间速度 `HbyA = H/A`。预测步单独求解的显式压力力没有写入保存的动量矩阵。
+3. 压力修正后用 `U = HbyA - rAAtU*fvc::grad(lambda*p)` 更新速度，与动量预测使用同一个乘积梯度。
 
 #### 1.2.4 能量方程修正
 内能形式：
@@ -111,36 +110,11 @@ void ArisaSTALL::thermophysicalPredictor()
 ```
 
 #### 2.2.3 压力修正（correctPressure.C）
-```cpp
-void ArisaSTALL::correctPressure()
-{
-    const volScalarField& lambda = lambda_;
-    const surfaceScalarField lambdaf(fvc::interpolate(lambda));
+OpenFOAM v13 通过虚函数 `pressureCorrector()` 进入 PISO 循环。Rotor 37 的无浮力分支在此调用自定义压力修正，首轮密度预测和压力修正后的密度更新都使用开口质量通量。启用浮力时沿用基类的 `p_rgh` 求解路径。
 
-    // 拉普拉斯系数添加lambda
-    const volScalarField rAU("rAU", 1.0/UEqn.A());
-    const surfaceScalarField rhorAUf("rhorAUf", fvc::interpolate(rho*rAU));
-    const surfaceScalarField lambdarhorAUf("lambdarhorAUf", lambdaf*rhorAUf);
+压力未知量仍是热力学压力 `p`。令 `G` 表示面的法向离散梯度，`D` 表示插值到面的 `rho*rAAtU`，`lambda_f` 表示面上的开口比例。每次压力修正用当前迭代的场计算显式余项 `G(lambda*p) - lambda_f*G(p)`。将余项与隐式项合并后，迭代收敛时得到完整的离散乘积梯度。即使初始压力均匀，开口比例的变化也会产生压力通量。
 
-    // 构建压力方程
-    fvScalarMatrix pDDtEqn(
-        lambda*fvc::ddt(rho) + psi*correction(lambda*fvm::ddt(p))
-      + fvc::div(lambdaf*phiHbyA)
-     ==
-        lambda*fvModels().sourceProxy(rho, p)
-    );
-
-    // 求解压力方程
-    while (pimple.correctNonOrthogonal())
-    {
-        fvScalarMatrix pEqn(pDDtEqn - fvm::laplacian(lambdarhorAAtUf, p));
-        pEqn.solve();
-    }
-
-    // 关键速度更新：乘lambda
-    U = HbyA - lambda*rAAtU*fvc::grad(p);
-}
-```
+连续方程使用开口质量通量 `lambda_f*phi`。其压力拉普拉斯系数为 `lambda_f*lambda_f*D`，一个因子来自开口面积，另一个来自乘积梯度中的隐式项。最后一次非正交修正将守恒面通量除以 `lambda_f` 后写入 `phi`，供动量、密度和能量方程使用。模型要求流通面满足 `lambda_f > 0`。
 
 ## 3. 代码结构与修改点
 
